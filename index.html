@@ -17,14 +17,18 @@ canvas{display:block;width:100%;height:100%}
 #bar b{flex:1;text-align:center;text-shadow:0 1px 3px #000}
 button{background:#2b3038cc;color:var(--fg);border:1px solid #4a5260;border-radius:8px;padding:10px 14px;font-size:15px}
 button.on{background:var(--ac);color:#001}
-#pp,#sp{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:none;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;padding:0 10px;z-index:5}#sp{display:none}#pl{display:flex;gap:6px}#pl button{border-width:3px}#pp label,#sp label{background:#2b3038cc;border:1px solid #4a5260;border-radius:8px;padding:8px 12px;font-size:14px}#pp input,#sp input{vertical-align:middle;width:120px;touch-action:auto}
+#pp,#sp{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:none;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;padding:0 10px;z-index:5}#sp{display:none;position:fixed;right:8px;top:calc(env(safe-area-inset-top) + 60px);bottom:auto;left:auto;width:290px;max-height:calc(100% - 120px);overflow:auto;flex-direction:column;align-items:stretch;background:#1e2126cc;border-radius:10px;padding:8px}#sp .row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}#pad{width:100%;background:#262b33;border:1px solid #4a5260;border-radius:6px;touch-action:none}#sc label{display:block;margin:6px 0}#sc input{width:100%}#minis svg{width:130px;height:130px;background:#262b33;border:1px solid #4a5260;border-radius:6px}#pl{display:flex;gap:6px}#pl button{border-width:3px}#pp label,#sp label{background:#2b3038cc;border:1px solid #4a5260;border-radius:8px;padding:8px 12px;font-size:14px}#pp input,#sp input{vertical-align:middle;width:120px;touch-action:auto}
 #note{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 12px);text-align:center;opacity:.6;font-size:13px;display:none}
 </style></head><body>
 <div id="menu"></div>
 <div id="view"></div>
 <div id="bar"><button id="back">‹ Back</button><b id="title"></b><button id="persp">Perspective</button><button id="light">Light</button><button id="reset">Reset</button></div>
 <div id="pp"><button id="blocks">Blocks</button><label>Width <input id="sw" type="range" min="0.1" max="1" step="0.01" value="0.5"></label><label>Height <input id="sh" type="range" min="0.1" max="1" step="0.01" value="0.5"></label><button id="rand">Random</button><button id="zero">Zero</button></div>
-<div id="sp"><button id="shape">Cylinder</button><button id="pts" class="on">Points</button><button id="lns" class="on">Lines</button><button id="mdl" class="on">Model</button><button id="rst">Reset</button><span id="pl"></span><label>Planes <input id="po" type="range" min="0.1" max="1" step="0.05" value="0.6"></label></div>
+<div id="sp"><div class="row"><button id="m0" class="on">Points/Lines</button><button id="m1">Cylinder</button><button id="m2">Block</button><button id="free">3D drag</button></div>
+<div class="row"><button id="bop" class="on">Operate</button><button id="bsh">Show</button><button id="rst">Reset</button></div>
+<label>Wireframe opacity <input id="po" type="range" min="0" max="1" step="0.02" value="1"></label>
+<div id="op"><div class="row" id="pbtn"></div><svg id="pad" viewBox="-200 -200 400 400"></svg><div id="sc"></div></div>
+<div id="sh" style="display:none"><div class="row" id="minis"></div></div></div>
 <div id="note"></div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module" src="app.js"></script>

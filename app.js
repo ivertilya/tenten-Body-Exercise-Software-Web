@@ -57,42 +57,66 @@ $('rand').onclick=()=>{grp.traverse(o=>{if(o.userData.mesh&&o.parent&&o.visible)
 function stickInit(g){
  const P=[],M=[];g.traverse(o=>{let m;if(m=/^P(\d+)$/.exec(o.name))P[+m[1]]=o;if(m=/^(\d\d)[A-Z]/.exec(o.name))M[+m[1]]=o});
  const rest=P.map(p=>[p.position.clone(),p.quaternion.clone()]);
- const S={shape:'yuan',pts:true,lns:true,mdl:true},wp=i=>P[i].getWorldPosition(new T.Vector3());
+ const S={mode:0,free:false,plane:0,op:'op'},wp=i=>P[i].getWorldPosition(new T.Vector3());
+ const GR=[[0],[1,2,3],[4],[5,6,7],[8,10],[9,11]],DR=[[0],[1],[4],[5],[8,10],[9,11]].map(a=>new Set(a));
+ const COL=['#ff6b59','#ffc759','#8ce84a','#40e8e0','#648cf7','#c787f7'],NAMES=['Head','Chest','Abdomen','Hip','Knee','Foot'];
+ const SC=[[0],[1],[],[5],[],[6,7]],SCN={0:'Head',1:'Chest',5:'Hip',6:'Left leg',7:'Right leg'},sv={};
  const hit=[];P.forEach((p,i)=>{const h=new T.Mesh(new T.SphereGeometry(.22/3*(i>=2&&i<=3||i>=6&&i<=7?3:1)),new T.MeshBasicMaterial({visible:false}));h.userData.pt=i;p.add(h);hit.push(h);
   p.traverse(o=>{if(o.isMesh&&o!==h)o.material=new T.MeshBasicMaterial({color:0xff5050})})});
  const lines=[[0,1,4,5],[3,1,2],[9,8,6,5,7,10,11]].map(ix=>({ix,m:ix.slice(1).map(()=>new T.Mesh(new T.CylinderGeometry(.03,.03,1,6),new T.MeshBasicMaterial({color:0x66ccff})))}));
  lines.forEach(l=>l.m.forEach(m=>g.add(m)));
- const up=new T.Vector3(0,-1,0),pairs={0:[0,1],1:[1,4],5:[4,5],6:[6,8],8:[8,9],7:[7,10],10:[10,11]};
  const mats=new T.MeshStandardMaterial({color:0xd8d2c6,roughness:.7,transparent:true,opacity:.85,side:T.DoubleSide});
  M.forEach(m=>m&&m.traverse(o=>{if(o.isMesh)o.material=mats}));
- const PL=[['Head',0xff6b59],['Chest',0xffc759],['Abdomen',0x8ce84a],['Hip',0x40e8e0],['Knee',0x648cf7],['Foot',0xc787f7]],planes=[];
- const tex=new T.TextureLoader().load('kuang.png');tex.colorSpace=T.SRGBColorSpace;
+ const PLc=[0xff6b59,0xffc759,0x8ce84a,0x40e8e0,0x648cf7,0xc787f7],planes=[],tex=new T.TextureLoader().load('kuang.png');tex.colorSpace=T.SRGBColorSpace;
  g.traverse(o=>{const k=/^Kuang([1-6])$/.exec(o.name);
-  if(k&&o.parent&&o.parent.name==='Kuang'){const i=k[1]-1,mat=new T.MeshBasicMaterial({map:tex,color:PL[i][1],transparent:true,opacity:.6,side:T.DoubleSide,depthWrite:false});
-   o.children.forEach(c=>{if(c.isMesh)c.material=mat});planes[i]={node:o,mat}}
+  if(k&&o.parent&&o.parent.name==='Kuang'){const mat=new T.MeshBasicMaterial({map:tex,color:PLc[k[1]-1],transparent:true,opacity:.6,side:T.DoubleSide,depthWrite:false});o.children.forEach(c=>{if(c.isMesh)c.material=mat});planes.push(mat)}
   if(/^Kuang[1-6] \(1\)$/.test(o.name))o.visible=false});
- const plb=$('pl');plb.innerHTML='';PL.forEach(([n,c],i)=>{const b=document.createElement('button');b.textContent=n;b.className='on';b.style.borderColor='#'+c.toString(16).padStart(6,'0');b.onclick=()=>{const p=planes[i];if(!p)return;p.node.visible=!p.node.visible;b.classList.toggle('on',p.node.visible)};plb.append(b)});
- $('po').oninput=()=>planes.forEach(p=>p&&(p.mat.opacity=+$('po').value));$('po').value=.6;
-
+ // models start hidden (DX); mode 1 = cylinders, 2 = blocks
+ const up=new T.Vector3(0,-1,0),pairs={0:[0,1],1:[1,4],5:[4,5],6:[6,8],8:[8,9],7:[7,10],10:[10,11]};
  function update(){
-  M.forEach((m,i)=>{if(!m)return;m.visible=S.mdl;const pi=P[i]?i:null;m.position.copy(wp(i));
-   const pr=pairs[i];if(pr){const d=wp(pr[1]).sub(wp(pr[0])).normalize();m.quaternion.setFromUnitVectors(up,d)}
-   m.children.forEach(c=>{c.visible=c.name.endsWith(S.shape==='yuan'?'_yuan':'_fang')||!/_(yuan|fang)$/.test(c.name)})});
-  P.forEach(p=>p.traverse(o=>{if(o.isMesh&&!o.userData.pt)o.visible=S.pts}));
-  lines.forEach(l=>l.m.forEach((m,k)=>{m.visible=S.lns;const a=wp(l.ix[k]),b=wp(l.ix[k+1]);m.position.copy(a).add(b).multiplyScalar(.5);m.scale.set(1,a.distanceTo(b),1);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),b.clone().sub(a).normalize())}))}
- let drag=null,pl=new T.Plane(),pt=new T.Vector3(),v2=new T.Vector2();
- const ndc=e=>{const b=r.domElement.getBoundingClientRect();v2.set((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1);ray.setFromCamera(v2,cam)};
- const down=e=>{if(!stick||e.target!==r.domElement)return;ndc(e);const h=ray.intersectObjects(hit,false)[0];if(!h)return;drag=h.object.userData.pt;ctl.enabled=false;
-  pl.setFromNormalAndCoplanarPoint(cam.getWorldDirection(new T.Vector3()),wp(drag));r.domElement.setPointerCapture(e.pointerId)};
- const move=e=>{if(drag==null)return;ndc(e);if(!ray.ray.intersectPlane(pl,pt))return;const p=P[drag];
-  if(drag===2||drag===3||drag===6||drag===7){const par=p.parent,c=par.getWorldPosition(new T.Vector3()),d=pt.clone().sub(c);if(d.lengthSq()<1e-4)return;
-   const q=new T.Quaternion().setFromUnitVectors(rest[drag][0].clone().normalize(),d.normalize());
-   const pq=par.parent.getWorldQuaternion(new T.Quaternion());par.quaternion.copy(pq.invert().multiply(q))}
-  else p.position.copy(p.parent.worldToLocal(pt.clone()))};
+  M.forEach((m,i)=>{if(!m)return;m.visible=S.mode>0;m.position.copy(wp(i));
+   const pr=pairs[i];if(pr)m.quaternion.setFromUnitVectors(up,wp(pr[1]).sub(wp(pr[0])).normalize());
+   m.children.forEach(c=>{c.visible=!/_(yuan|fang)$/.test(c.name)||c.name.endsWith(S.mode===2?'_fang':'_yuan')})});
+  lines.forEach(l=>l.m.forEach((m,k)=>{const a=wp(l.ix[k]),b=wp(l.ix[k+1]);m.position.copy(a).add(b).multiplyScalar(.5);m.scale.set(1,a.distanceTo(b),1);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),b.clone().sub(a).normalize())}));
+  draw()}
+ // --- top-view pads (x,z): 400px = 3 units, original DoDrag mapping ---
+ const NS='http://www.w3.org/2000/svg',U=400/3,pad=$('pad'),minis=$('minis');
+ const pos=i=>{const w=wp(i);return[-w.x*U,-w.z*U]};      // svg coords (y down)
+ const dots=[],mdots=[];
+ function mk(svg,list,drag){const o={};list.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',drag&&DR[S.plane].has(i)?14:8);c.dataset.i=i;svg.append(c);o[i]=c});return o}
+ function frame(svg){svg.innerHTML='<line x1="-200" x2="200" y1="0" y2="0" stroke="#555"/><line y1="-200" y2="200" x1="0" x2="0" stroke="#555"/><line x1="-200" y1="-200" x2="200" y2="200" stroke="#444"/><line x1="200" y1="-200" x2="-200" y2="200" stroke="#444"/>'}
+ function buildPad(){frame(pad);dots.length=0;GR[S.plane].forEach(i=>{const c=document.createElementNS(NS,'circle');const d=DR[S.plane].has(i);c.setAttribute('r',d?14:8);c.setAttribute('fill',d?COL[S.plane]:'#999');c.dataset.i=i;if(d)c.dataset.d=1;pad.append(c);dots[i]=c})}
+ function buildMinis(){minis.innerHTML='';GR.forEach((gr,pi)=>{const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','-200 -200 400 400');frame(s);gr.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',12);c.setAttribute('fill',COL[pi]);s.append(c);mdots[i]=c});minis.append(s)})}
+ function draw(){if(S.op==='op'){for(const i in dots){const[x,y]=pos(+i);dots[i].setAttribute('cx',x);dots[i].setAttribute('cy',y)}}else for(const i in mdots){const[x,y]=pos(+i);mdots[i].setAttribute('cx',x);mdots[i].setAttribute('cy',y)}}
+ let dp=null;const sp=e=>{const q=pad.createSVGPoint();q.x=e.clientX;q.y=e.clientY;return q.matrixTransform(pad.getScreenCTM().inverse())};
+ pad.addEventListener('pointerdown',e=>{if(e.target.dataset.d){dp=+e.target.dataset.i;pad.setPointerCapture(e.pointerId)}});
+ pad.addEventListener('pointermove',e=>{if(dp==null)return;const q=sp(e),x=Math.max(-200,Math.min(200,q.x)),z=Math.max(-200,Math.min(200,q.y));P[dp].position.x=-x/U;P[dp].position.z=-z/U});
+ pad.addEventListener('pointerup',()=>dp=null);
+ // --- twist scrollbars: (v-0.5)*360 deg about vertical (original DoModelRot) ---
+ const ch=m=>m?m.children.filter(c=>!c.userData.pt&&c.isObject3D&&!c.name.startsWith('P')):[];
+ function twist(k,v){const a=(v-.5)*2*Math.PI;
+  ch(M[k]).forEach(c=>c.rotation.y=a);
+  if(k===1)P[1].rotation.y=a;if(k===5)P[5].rotation.y=a;
+  if(k===6){ch(M[8]).forEach(c=>c.rotation.y=a);if(M[9])M[9].rotation.y=a}
+  if(k===7){ch(M[10]).forEach(c=>c.rotation.y=a);if(M[11])M[11].rotation.y=a}}
+ function buildSc(){const d=$('sc');d.innerHTML='';SC[S.plane].forEach(k=>{const l=document.createElement('label');l.textContent=SCN[k];const r=document.createElement('input');r.type='range';r.min=0;r.max=1;r.step=.005;r.value=sv[k]??.5;r.oninput=()=>{sv[k]=+r.value;twist(k,+r.value)};l.append(r);d.append(l)})}
+ function setPlane(i){S.plane=i;[...$('pbtn').children].forEach((b,k)=>b.classList.toggle('on',k===i));buildPad();buildSc()}
+ $('pbtn').innerHTML='';NAMES.forEach((n,i)=>{const b=document.createElement('button');b.textContent=n;b.style.borderColor=COL[i];b.style.borderWidth='3px';b.onclick=()=>setPlane(i);$('pbtn').append(b)});
+ buildMinis();setPlane(0);
+ // --- buttons ---
+ const setMode=k=>{S.mode=k;[0,1,2].forEach(j=>$('m'+j).classList.toggle('on',j===k))};[0,1,2].forEach(k=>$('m'+k).onclick=()=>setMode(k));setMode(0);
+ const setOp=o=>{S.op=o;$('op').style.display=o==='op'?'block':'none';$('sh').style.display=o==='op'?'none':'block';$('bop').classList.toggle('on',o==='op');$('bsh').classList.toggle('on',o!=='op')};
+ $('bop').onclick=()=>setOp('op');$('bsh').onclick=()=>setOp('sh');setOp('op');
+ $('po').oninput=()=>planes.forEach(m=>m.opacity=$('po').value*.6);$('po').value=1;planes.forEach(m=>m.opacity=.6);
+ $('free').classList.remove('on');$('free').onclick=()=>{S.free=!S.free;$('free').classList.toggle('on',S.free)};
+ $('rst').onclick=()=>{P.forEach((p,i)=>{p.position.copy(rest[i][0]);p.quaternion.copy(rest[i][1])});
+  M.forEach(m=>{if(!m)return;ch(m).forEach(c=>c.rotation.set(0,0,0));if([9,11].includes(M.indexOf(m)))m.rotation.set(0,0,0)});
+  for(const k in sv)delete sv[k];buildSc()};
+ // optional free 3D drag (extra, not in original)
+ const E=r.domElement;let drag=null,pl=new T.Plane(),pt=new T.Vector3(),v2=new T.Vector2();
+ const ndc=e=>{const b=E.getBoundingClientRect();v2.set((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1);ray.setFromCamera(v2,cam)};
+ const down=e=>{if(!S.free||e.target!==E)return;ndc(e);const h=ray.intersectObjects(hit,false)[0];if(!h)return;drag=h.object.userData.pt;ctl.enabled=false;pl.setFromNormalAndCoplanarPoint(cam.getWorldDirection(new T.Vector3()),wp(drag));E.setPointerCapture(e.pointerId)};
+ const move=e=>{if(drag==null)return;ndc(e);if(!ray.ray.intersectPlane(pl,pt))return;const p=P[drag];p.position.copy(p.parent.worldToLocal(pt.clone()))};
  const up_=()=>{drag=null;ctl.enabled=true};
- const E=r.domElement;E.addEventListener('pointerdown',down);E.addEventListener('pointermove',move);E.addEventListener('pointerup',up_);
- const tg=(id,k)=>$(id).onclick=()=>{S[k]=!S[k];$(id).classList.toggle('on',S[k])};tg('pts','pts');tg('lns','lns');tg('mdl','mdl');
- $('shape').onclick=()=>{S.shape=S.shape==='yuan'?'fang':'yuan';$('shape').textContent=S.shape==='yuan'?'Cylinder':'Block'};
- $('rst').onclick=()=>P.forEach((p,i)=>{p.position.copy(rest[i][0]);p.quaternion.copy(rest[i][1])});
- $('shape').textContent='Cylinder';
+ E.addEventListener('pointerdown',down);E.addEventListener('pointermove',move);E.addEventListener('pointerup',up_);
  return{update,dispose(){E.removeEventListener('pointerdown',down);E.removeEventListener('pointermove',move);E.removeEventListener('pointerup',up_)}}}
