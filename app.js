@@ -12,9 +12,9 @@ const [scenes,meshes]=await Promise.all([fetch('scenes.json').then(r=>r.json()),
 const menu=$('menu');menu.innerHTML='<h1>Body Practice</h1>';
 for(const m of MODES){const d=document.createElement('div');d.className='card';d.innerHTML=m.t+(m.ready?'':'<small>coming soon</small>');if(m.ready)d.onclick=()=>open(m);else d.style.opacity=.45;menu.append(d)}
 const r=new T.WebGLRenderer({antialias:true});r.setPixelRatio(Math.min(devicePixelRatio,2));$('view').append(r.domElement);
-let head=null,stick=null,sc,cam,ctl,dl,persp=true,cur,geoms={},grp,sel=null,ray=new T.Raycaster(),blocks=false;
+let forms=null,head=null,stick=null,sc,cam,ctl,dl,persp=true,cur,geoms={},grp,sel=null,ray=new T.Raycaster(),blocks=false;
 function geom(id,useN){const key=id+(useN?'n':'');if(geoms[key])return geoms[key];if(id==='10210')return geoms[key]=new T.PlaneGeometry(1,1);const m=meshes[id];if(!m)return null;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(m.v,3));g.setIndex(m.i);if(m.uv)g.setAttribute('uv',new T.Float32BufferAttribute(m.uv,2));if(useN&&m.n)g.setAttribute('normal',new T.Float32BufferAttribute(m.n,3));else g.computeVertexNormals();return geoms[key]=g}
-const texs={},loader=new T.TextureLoader();const tex=id=>id?(texs[id]??(texs[id]=loader.load('tex/'+id+'.png'))):null;
+const texs={},loader=new T.TextureLoader();const tex=id=>{if(!id)return null;if(texs[id])return texs[id];const t=loader.load('tex/'+id+'.png',undefined,undefined,()=>loader.load(id+'.png',r=>{t.image=r.image;t.needsUpdate=true}));return texs[id]=t};
 const HV=`varying vec2 vUv;varying vec3 vN;void main(){vUv=uv;vN=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
 const HF=`uniform sampler2D map;uniform float hasMap,op,lit,ka;uniform vec3 color,L;varying vec2 vUv;varying vec3 vN;void main(){vec4 t=hasMap>.5?texture2D(map,vUv):vec4(1.);vec3 c=mix(color,color*t.rgb,op);float a=ka>.5?t.a:1.;if(ka>.5)c=color*t.rgb;float d=max(dot(normalize(vN),L),0.);float s=mix(1.,.35+.65*d,lit);gl_FragColor=vec4(c*s,a);}`;
 const hmats=[];
@@ -27,37 +27,63 @@ function build(lv){const nodes=scenes[lv].slice().sort((p,q)=>(p.ord||0)-(q.ord|
 function open(m){if(stick)stick.dispose();cur=m;$('menu').style.display='none';$('view').style.display='block';$('bar').style.display='flex';$('title').textContent=m.t;
  sc=new T.Scene();sc.background=new T.Color(0x3a3f47);
  if(m.stub){const c=new T.Mesh(new T.BoxGeometry(2,2,2),new T.MeshStandardMaterial({color:0xcccccc}));sc.add(c);$('note').textContent='This mode is an unfinished placeholder in the original app.';$('note').style.display='block'}
- else{const g=build(m.lv);grp=g;sc.add(g);sel=null;blocks=false;showBlocks();$('note').style.display='none'}
- $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;$('hp').style.display=m.lv===3?'flex':'none';head=m.lv===3?headInit(grp):null;syncSliders();
+ else{const g=build(m.lv);grp=g;sc.add(g);$('note').style.display='none'}
+ $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;$('hp').style.display=m.lv===3?'flex':'none';head=m.lv===3?headInit(grp):null;if(forms)forms.dispose();forms=m.lv===1?formsInit(grp):null;
  sc.add(new T.AmbientLight(0xffffff,.55));dl=new T.DirectionalLight(0xffffff,1.6);dl.position.set(3,5,6);sc.add(dl);
  persp=true;mkcam();resize()}
 function mkcam(){const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.1,100):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,10);
  if(ctl)ctl.dispose();ctl=new OrbitControls(cam,r.domElement);ctl.enableDamping=true;ctl.target.set(0,0,0);ctl.update();$('persp').classList.toggle('on',persp)}
 function resize(){r.setSize(innerWidth,innerHeight);if(cam){const a=innerWidth/innerHeight;if(persp)cam.aspect=a;else{cam.left=-5*a;cam.right=5*a}cam.updateProjectionMatrix()}}
 addEventListener('resize',resize);
-$('back').onclick=()=>{$('hp').style.display='none';head=null;$('pp').style.display='none';$('sp').style.display='none';if(stick)stick.dispose();stick=null;if(ctl)ctl.enabled=true;$('menu').style.display='grid';$('view').style.display='none';$('bar').style.display='none';$('note').style.display='none';cur=null};
+$('back').onclick=()=>{if(forms)forms.dispose();forms=null;$('hp').style.display='none';head=null;$('pp').style.display='none';$('sp').style.display='none';if(stick)stick.dispose();stick=null;if(ctl)ctl.enabled=true;$('menu').style.display='grid';$('view').style.display='none';$('bar').style.display='none';$('note').style.display='none';cur=null};
 $('persp').onclick=()=>{persp=!persp;mkcam();resize()};
 $('light').onclick=()=>{dl.position.applyAxisAngle(new T.Vector3(0,1,0),Math.PI/4)};
 $('reset').onclick=()=>{mkcam()};
-r.setAnimationLoop(()=>{if(cur){if(stick)stick.update();if(head)head.update();ctl.update();r.render(sc,cam)}});
+r.setAnimationLoop(()=>{if(cur){if(stick)stick.update();if(head)head.update();if(forms)forms.update();ctl.update();r.render(sc,cam)}});
 
-// --- Major Forms & Proportions controls ---
-const find=n=>{let f;grp&&grp.traverse(o=>{if(!f&&o.name===n)f=o});return f};
-function showBlocks(){const a=find('Renti'),b=find('Tikuai');if(a)a.visible=!blocks;if(b)b.visible=blocks;$('blocks').classList.toggle('on',blocks)}
-function mark(o,on){o&&o.traverse(m=>{if(m.isMesh&&m.parent===o)m.material.emissive.setHex(on?0x553300:0)})}
-function syncSliders(){if(sel){$('sw').value=sel.scale.x/2;$('sh').value=sel.scale.y/2}else{$('sw').value=.5;$('sh').value=.5}}
-function pick(e){if(!grp||!cur||cur.lv!==1||e.target!==r.domElement)return;const b=r.domElement.getBoundingClientRect();
- ray.setFromCamera(new T.Vector2((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1),cam);
- const hit=ray.intersectObjects(grp.children.filter(c=>c.visible),true).find(h=>h.object.isMesh);
- mark(sel,false);sel=hit?hit.object.parent:null;mark(sel,true);syncSliders()}
-let dn=null;r.domElement.addEventListener('pointerdown',e=>dn=[e.clientX,e.clientY]);
-r.domElement.addEventListener('pointerup',e=>{if(dn&&Math.hypot(e.clientX-dn[0],e.clientY-dn[1])<6)pick(e);dn=null});
-const setS=()=>{if(sel){sel.scale.x=2*$('sw').value;sel.scale.y=2*$('sh').value}};
-$('sw').oninput=setS;$('sh').oninput=setS;
-$('blocks').onclick=()=>{mark(sel,false);sel=null;blocks=!blocks;showBlocks();syncSliders()};
-$('zero').onclick=()=>{grp.traverse(o=>{if(o.userData.s&&o.userData.mesh){o.scale.set(...o.userData.s)}});syncSliders()};
-$('rand').onclick=()=>{grp.traverse(o=>{if(o.userData.mesh&&o.parent&&o.visible){o.scale.x=.6+Math.random()*1.0;o.scale.y=.6+Math.random()*1.0}});syncSliders()};
-
+// --- Major Forms & Proportions ---
+const PARTS=/^(Tou0|Xiong1|DabiL2|XiaobiL3|DabiR5|XiaobiR6|Tun8|DatuiL9|XiaotuiL10|DatuiR11|XiaotuiR12)$/;
+const TWIN={DabiL2:'DabiR5',DabiR5:'DabiL2',XiaobiL3:'XiaobiR6',XiaobiR6:'XiaobiL3',DatuiL9:'DatuiR11',DatuiR11:'DatuiL9',XiaotuiL10:'XiaotuiR12',XiaotuiR12:'XiaotuiL10'};
+function formsInit(g){
+ const R=g.getObjectByName('Renti'),Tk=g.getObjectByName('Tikuai'),Md=g.getObjectByName('Model');
+ const B={},real=new Set();R.traverse(o=>{if(PARTS.test(o.name)&&o.userData.mesh){B[o.name]=o;real.add(o)}});
+ const Xi=B.Xiong1,Tu=B.Tun8,att=[[B.Xiong1,Tu,0],[B.Tou0,Xi,0],[B.DabiL2,Xi,1],[B.DabiR5,Xi,2],[B.DatuiL9,Tu,1],[B.DatuiR11,Tu,2]];
+ const w=new T.Vector3();
+ function bodyPos(){att.forEach(([n,p,i])=>{const a=p&&p.children[i];if(!n||!a)return;a.getWorldPosition(w);n.position.copy(n.parent.worldToLocal(w.clone()))})}
+ let sel=null,tw=null,mode=1,bl=false;
+ const mark=(o,on)=>o&&o.children.forEach(m=>{if(m.isMesh&&m.material.emissive)m.material.emissive.setHex(on?0x553300:0)});
+ const sync=()=>{$('fw').value=sel?sel.scale.x/2:.5;$('fh').value=sel?sel.scale.y/2:.5};
+ const setMode=k=>{mode=k;mark(sel,false);mark(tw,false);sel=tw=null;sync();R.visible=k===1;Tk.visible=k===2;$('qs').style.display=k===1?'flex':'none';$('jb').style.display=k===2?'flex':'none';$('b1').classList.toggle('on',k===1);$('b2').classList.toggle('on',k===2)};
+ $('b1').onclick=()=>setMode(1);$('b2').onclick=()=>setMode(2);
+ // ruler lines (BL): horizontal marks at the heights of point0..5, from 0.7n to 4n
+ const P=[];R.traverse(o=>{const m=/^point(\d)$/.exec(o.name);if(m)P[+m[1]]=o});
+ const segs=[];for(let i=0;i<7;i++){const m=new T.Mesh(new T.CylinderGeometry(.015,.015,1,6),new T.MeshBasicMaterial({color:0x66ccff}));m.visible=false;g.add(m);segs.push(m)}
+ const Y=i=>P[i]?P[i].getWorldPosition(new T.Vector3()).y:0;
+ function put(m,a,b){m.position.copy(a).add(b).multiplyScalar(.5);m.scale.set(1,a.distanceTo(b),1);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),b.clone().sub(a).normalize())}
+ function rulers(){const n=Md?Md.scale.x:1,v=(x,y)=>new T.Vector3(-x*n,y,0);let k=0;
+  if(P[0]&&P[5]){const a=Y(0),b=Y(5);put(segs[k++],v(.7,a),v(4,a));put(segs[k++],v(4,a),v(4,b));put(segs[k++],v(4,b),v(.7,b))}
+  for(let i=1;i<=4;i++)if(P[i]){const y=Y(i);put(segs[k++],v(.7,y),v(4,y))}
+  segs.forEach((m,i)=>m.visible=bl&&i<k)}
+ $('bl').onclick=()=>{bl=!bl;$('bl').classList.toggle('on',bl)};
+ // width: x=z=2v ; height: y=2v ; the symmetric twin follows (original DoButtonEvent)
+ $('fw').oninput=()=>{const s=2*$('fw').value;[sel,tw].forEach(o=>o&&(o.scale.x=o.scale.z=s))};
+ $('fh').oninput=()=>{const s=2*$('fh').value;[sel,tw].forEach(o=>o&&(o.scale.y=s))};
+ $('fz').onclick=()=>{R.traverse(o=>{if(o.userData.s)o.scale.set(...o.userData.s)});sync()};
+ // local mode: step view of Xiong / Tun blocks (idx = floor(v*3)), random tilt of Tou / Tun, zero
+ const stepv=()=>{const i=Math.min(3,Math.floor($('fs').value*3));[Tk.children[1],Tk.children[2]].forEach(gr=>gr&&gr.children.forEach((c,k)=>{if(k<4)c.visible=k===i}))};
+ $('fs').oninput=stepv;
+ const rnd=(a,b)=>(a+Math.random()*(b-a))*Math.PI/180;
+ $('fr').onclick=()=>[Tk.children[0],Tk.children[2]].forEach(o=>{o.rotation.order='YXZ';o.rotation.set(rnd(-30,30),rnd(-60,60),rnd(-30,30))});
+ $('fj').onclick=()=>[Tk.children[0],Tk.children[2]].forEach(o=>o.rotation.set(0,0,0));
+ // tap to select a body part (original uses Ctrl+click)
+ const E=r.domElement;let dn=null;const down=e=>dn=[e.clientX,e.clientY];
+ const up=e=>{if(!dn||e.target!==E)return;const moved=Math.hypot(e.clientX-dn[0],e.clientY-dn[1])>6;dn=null;if(moved||mode!==1)return;
+  const b=E.getBoundingClientRect();ray.setFromCamera(new T.Vector2((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1),cam);
+  const hit=ray.intersectObject(R,true).find(h=>h.object.isMesh);mark(sel,false);mark(tw,false);sel=tw=null;
+  if(hit){let o=hit.object.parent;while(o&&!real.has(o))o=o.parent;if(o){sel=o;const t=TWIN[o.name];tw=t?B[t]:null;mark(sel,true);mark(tw,true)}}sync()};
+ E.addEventListener('pointerdown',down);E.addEventListener('pointerup',up);
+ setMode(1);$('bl').classList.remove('on');$('fs').value=0;stepv();
+ return{update(){bodyPos();rulers()},dispose(){E.removeEventListener('pointerdown',down);E.removeEventListener('pointerup',up)}}}
 // --- Stick Figure & Space ---
 function stickInit(g){
  const P=[],M=[];g.traverse(o=>{let m;if(m=/^P(\d+)$/.exec(o.name))P[+m[1]]=o;if(m=/^(\d\d)[A-Z]/.exec(o.name))M[+m[1]]=o});
