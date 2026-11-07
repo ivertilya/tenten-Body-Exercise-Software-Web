@@ -3,7 +3,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 const MODES=[
  {lv:2,t:'Stick Figure & Space',cn:'火柴人与空间',ready:true},
  {lv:1,t:'Major Forms & Proportions',cn:'大体块与比例',ready:true},
- {lv:3,t:'Loomis & Head',cn:'卢米斯与脑瓜',ready:false},
+ {lv:3,t:'Loomis & Head',cn:'卢米斯与脑瓜',ready:true},
  {lv:5,t:'Block Figure & Pose',cn:'方块人与动态',ready:false},
  {lv:4,t:'Muscles & Skeleton',cn:'肌肉群与骨骼',ready:true,stub:true},
  {lv:6,t:'Light, Shadow & Material',cn:'光与影与材质',ready:true,stub:true}];
@@ -12,29 +12,34 @@ const [scenes,meshes]=await Promise.all([fetch('scenes.json').then(r=>r.json()),
 const menu=$('menu');menu.innerHTML='<h1>Body Practice</h1>';
 for(const m of MODES){const d=document.createElement('div');d.className='card';d.innerHTML=m.t+(m.ready?'':'<small>coming soon</small>');if(m.ready)d.onclick=()=>open(m);else d.style.opacity=.45;menu.append(d)}
 const r=new T.WebGLRenderer({antialias:true});r.setPixelRatio(Math.min(devicePixelRatio,2));$('view').append(r.domElement);
-let stick=null,sc,cam,ctl,dl,persp=true,cur,geoms={},grp,sel=null,ray=new T.Raycaster(),blocks=false;
-function geom(id){if(geoms[id])return geoms[id];if(id==='10210')return geoms[id]=new T.PlaneGeometry(1,1);const m=meshes[id];if(!m)return null;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(m.v,3));g.setIndex(m.i);g.computeVertexNormals();return geoms[id]=g}
-function build(lv){const nodes=scenes[lv],by={};const root=new T.Group();
+let head=null,stick=null,sc,cam,ctl,dl,persp=true,cur,geoms={},grp,sel=null,ray=new T.Raycaster(),blocks=false;
+function geom(id,useN){const key=id+(useN?'n':'');if(geoms[key])return geoms[key];if(id==='10210')return geoms[key]=new T.PlaneGeometry(1,1);const m=meshes[id];if(!m)return null;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(m.v,3));g.setIndex(m.i);if(m.uv)g.setAttribute('uv',new T.Float32BufferAttribute(m.uv,2));if(useN&&m.n)g.setAttribute('normal',new T.Float32BufferAttribute(m.n,3));else g.computeVertexNormals();return geoms[key]=g}
+const texs={},loader=new T.TextureLoader();const tex=id=>id?(texs[id]??(texs[id]=loader.load('tex/'+id+'.png'))):null;
+const HV=`varying vec2 vUv;varying vec3 vN;void main(){vUv=uv;vN=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
+const HF=`uniform sampler2D map;uniform float hasMap,op,lit,ka;uniform vec3 color,L;varying vec2 vUv;varying vec3 vN;void main(){vec4 t=hasMap>.5?texture2D(map,vUv):vec4(1.);vec3 c=mix(color,color*t.rgb,op);float a=ka>.5?t.a:1.;if(ka>.5)c=color*t.rgb;float d=max(dot(normalize(vN),L),0.);float s=mix(1.,.35+.65*d,lit);gl_FragColor=vec4(c*s,a);}`;
+const hmats=[];
+function headMat(n){const c=n.mc||[1,1,1];const m=new T.ShaderMaterial({uniforms:{map:{value:tex(n.tx)},hasMap:{value:n.tx?1:0},color:{value:new T.Color(c[0],c[1],c[2])},op:{value:1},lit:{value:0},ka:{value:n.k==='kuang'?1:0},L:{value:new T.Vector3(0,0,1)}},vertexShader:HV,fragmentShader:HF,transparent:n.k==='kuang',depthWrite:n.k!=='kuang',side:T.DoubleSide});hmats.push(m);return m}
+function build(lv){const nodes=scenes[lv].slice().sort((p,q)=>(p.ord||0)-(q.ord||0)),by={};hmats.length=0;const root=new T.Group();
  for(const n of nodes){const o=new T.Object3D();o.name=n.name;o.visible=n.on;o.position.set(-n.p[0],n.p[1],n.p[2]);o.quaternion.set(n.q[0],-n.q[1],-n.q[2],n.q[3]);o.scale.set(...n.s);by[n.id]=o;o.userData=n;
-  const g=n.mesh&&geom(n.mesh);if(g){const c=n.col||[.8,.8,.8,1];o.add(new T.Mesh(g,new T.MeshStandardMaterial({color:new T.Color(c[0],c[1],c[2]),roughness:.8,side:T.DoubleSide})))}}
+  const g=n.mesh&&geom(n.mesh,lv===3);if(g){const c=n.col||[.8,.8,.8,1];o.add(new T.Mesh(g,lv===3&&n.k?headMat(n):new T.MeshStandardMaterial({color:new T.Color(c[0],c[1],c[2]),roughness:.8,side:T.DoubleSide})))}}
  for(const n of nodes){const o=by[n.id];(by[n.par]||root).add(o)}
  return root}
 function open(m){if(stick)stick.dispose();cur=m;$('menu').style.display='none';$('view').style.display='block';$('bar').style.display='flex';$('title').textContent=m.t;
  sc=new T.Scene();sc.background=new T.Color(0x3a3f47);
  if(m.stub){const c=new T.Mesh(new T.BoxGeometry(2,2,2),new T.MeshStandardMaterial({color:0xcccccc}));sc.add(c);$('note').textContent='This mode is an unfinished placeholder in the original app.';$('note').style.display='block'}
  else{const g=build(m.lv);grp=g;sc.add(g);sel=null;blocks=false;showBlocks();$('note').style.display='none'}
- $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;syncSliders();
+ $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;$('hp').style.display=m.lv===3?'flex':'none';head=m.lv===3?headInit(grp):null;syncSliders();
  sc.add(new T.AmbientLight(0xffffff,.55));dl=new T.DirectionalLight(0xffffff,1.6);dl.position.set(3,5,6);sc.add(dl);
  persp=true;mkcam();resize()}
 function mkcam(){const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.1,100):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,10);
  if(ctl)ctl.dispose();ctl=new OrbitControls(cam,r.domElement);ctl.enableDamping=true;ctl.target.set(0,0,0);ctl.update();$('persp').classList.toggle('on',persp)}
 function resize(){r.setSize(innerWidth,innerHeight);if(cam){const a=innerWidth/innerHeight;if(persp)cam.aspect=a;else{cam.left=-5*a;cam.right=5*a}cam.updateProjectionMatrix()}}
 addEventListener('resize',resize);
-$('back').onclick=()=>{$('pp').style.display='none';$('sp').style.display='none';if(stick)stick.dispose();stick=null;if(ctl)ctl.enabled=true;$('menu').style.display='grid';$('view').style.display='none';$('bar').style.display='none';$('note').style.display='none';cur=null};
+$('back').onclick=()=>{$('hp').style.display='none';head=null;$('pp').style.display='none';$('sp').style.display='none';if(stick)stick.dispose();stick=null;if(ctl)ctl.enabled=true;$('menu').style.display='grid';$('view').style.display='none';$('bar').style.display='none';$('note').style.display='none';cur=null};
 $('persp').onclick=()=>{persp=!persp;mkcam();resize()};
 $('light').onclick=()=>{dl.position.applyAxisAngle(new T.Vector3(0,1,0),Math.PI/4)};
 $('reset').onclick=()=>{mkcam()};
-r.setAnimationLoop(()=>{if(cur){if(stick)stick.update();ctl.update();r.render(sc,cam)}});
+r.setAnimationLoop(()=>{if(cur){if(stick)stick.update();if(head)head.update();ctl.update();r.render(sc,cam)}});
 
 // --- Major Forms & Proportions controls ---
 const find=n=>{let f;grp&&grp.traverse(o=>{if(!f&&o.name===n)f=o});return f};
@@ -120,3 +125,21 @@ function stickInit(g){
  const up_=()=>{drag=null;ctl.enabled=true};
  E.addEventListener('pointerdown',down);E.addEventListener('pointermove',move);E.addEventListener('pointerup',up_);
  return{update,dispose(){E.removeEventListener('pointerdown',down);E.removeEventListener('pointermove',move);E.removeEventListener('pointerup',up_)}}}
+
+// --- Loomis & Head ---
+const HM=['Loomis Head','Basic Frame','Basic Male Head','Basic Female Head','Volume Understanding','Feature Blocks','Block Light & Shadow'];
+function headInit(g){
+ const tou=g.getObjectByName('Tou'),G=tou.children,TB=[4,7,6,6,6,8,0],st=[0,0,0,0,0,0,0,0];let ti=0,zb=false,lit=0,v=0;
+ const mt=[];tou.traverse(o=>{if(o.isMesh&&o.material.uniforms)mt.push(o.material)});
+ const show=()=>G.forEach((gr,k)=>{if(k===7){gr.visible=zb;gr.children.forEach((c,j)=>c.visible=j===st[7]);return}gr.visible=k===ti;if(k===ti)gr.children.forEach((c,j)=>c.visible=j===st[k])});
+ function steps(val){v=val;for(let k=0;k<7;k++)st[k]=Math.floor(val*TB[k]);st[7]=val<.8?0:1;show()}
+ function mode(k){if(k===0){zb=false;$('hzb').classList.remove('on');$('hs').value=1;steps(1)}ti=k;$('hmode').textContent=HM[k]+' ▾';$('hlist').style.display='none';show()}
+ const hl=$('hlist');hl.innerHTML='';HM.forEach((n,k)=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>mode(k);hl.append(b)});hl.style.display='none';
+ $('hmode').onclick=()=>hl.style.display=hl.style.display==='none'?'flex':'none';
+ $('hs').oninput=()=>steps(+$('hs').value);
+ $('hzb').onclick=()=>{zb=!zb;$('hzb').classList.toggle('on',zb);show()};
+ $('hma').onclick=()=>{lit=lit?0:1;$('hma').classList.toggle('on',!!lit);mt.forEach(m=>m.uniforms.lit.value=lit)};
+ $('hop').oninput=()=>mt.forEach(m=>m.uniforms.op.value=+$('hop').value);
+ $('hzb').classList.remove('on');$('hma').classList.remove('on');$('hs').value=0;$('hop').value=1;$('hmode').textContent=HM[0]+' ▾';
+ steps(0);const L=new T.Vector3();
+ return{update(){L.copy(dl.position).normalize();mt.forEach(m=>m.uniforms.L.value.copy(L))}}}
