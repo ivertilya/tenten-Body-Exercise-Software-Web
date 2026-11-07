@@ -13,7 +13,7 @@ const menu=$('menu');menu.innerHTML='<h1>Body Practice</h1>';
 for(const m of MODES){const d=document.createElement('div');d.className='card';d.innerHTML=m.t+(m.ready?'':'<small>coming soon</small>');if(m.ready)d.onclick=()=>open(m);else d.style.opacity=.45;menu.append(d)}
 const r=new T.WebGLRenderer({antialias:true});r.setPixelRatio(Math.min(devicePixelRatio,2));$('view').append(r.domElement);
 let stick=null,sc,cam,ctl,dl,persp=true,cur,geoms={},grp,sel=null,ray=new T.Raycaster(),blocks=false;
-function geom(id){if(geoms[id])return geoms[id];const m=meshes[id];if(!m)return null;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(m.v,3));g.setIndex(m.i);g.computeVertexNormals();return geoms[id]=g}
+function geom(id){if(geoms[id])return geoms[id];if(id==='10210')return geoms[id]=new T.PlaneGeometry(1,1);const m=meshes[id];if(!m)return null;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(m.v,3));g.setIndex(m.i);g.computeVertexNormals();return geoms[id]=g}
 function build(lv){const nodes=scenes[lv],by={};const root=new T.Group();
  for(const n of nodes){const o=new T.Object3D();o.name=n.name;o.visible=n.on;o.position.set(-n.p[0],n.p[1],n.p[2]);o.quaternion.set(n.q[0],-n.q[1],-n.q[2],n.q[3]);o.scale.set(...n.s);by[n.id]=o;o.userData=n;
   const g=n.mesh&&geom(n.mesh);if(g){const c=n.col||[.8,.8,.8,1];o.add(new T.Mesh(g,new T.MeshStandardMaterial({color:new T.Color(c[0],c[1],c[2]),roughness:.8,side:T.DoubleSide})))}}
@@ -65,6 +65,15 @@ function stickInit(g){
  const up=new T.Vector3(0,-1,0),pairs={0:[0,1],1:[1,4],5:[4,5],6:[6,8],8:[8,9],7:[7,10],10:[10,11]};
  const mats=new T.MeshStandardMaterial({color:0xd8d2c6,roughness:.7,transparent:true,opacity:.85,side:T.DoubleSide});
  M.forEach(m=>m&&m.traverse(o=>{if(o.isMesh)o.material=mats}));
+ const PL=[['Head',0xff6b59],['Chest',0xffc759],['Abdomen',0x8ce84a],['Hip',0x40e8e0],['Knee',0x648cf7],['Foot',0xc787f7]],planes=[];
+ const tex=new T.TextureLoader().load('kuang.png');tex.colorSpace=T.SRGBColorSpace;
+ g.traverse(o=>{const k=/^Kuang([1-6])$/.exec(o.name);
+  if(k&&o.parent&&o.parent.name==='Kuang'){const i=k[1]-1,mat=new T.MeshBasicMaterial({map:tex,color:PL[i][1],transparent:true,opacity:.6,side:T.DoubleSide,depthWrite:false});
+   o.children.forEach(c=>{if(c.isMesh)c.material=mat});planes[i]={node:o,mat}}
+  if(/^Kuang[1-6] \(1\)$/.test(o.name))o.visible=false});
+ const plb=$('pl');plb.innerHTML='';PL.forEach(([n,c],i)=>{const b=document.createElement('button');b.textContent=n;b.className='on';b.style.borderColor='#'+c.toString(16).padStart(6,'0');b.onclick=()=>{const p=planes[i];if(!p)return;p.node.visible=!p.node.visible;b.classList.toggle('on',p.node.visible)};plb.append(b)});
+ $('po').oninput=()=>planes.forEach(p=>p&&(p.mat.opacity=+$('po').value));$('po').value=.6;
+
  function update(){
   M.forEach((m,i)=>{if(!m)return;m.visible=S.mdl;const pi=P[i]?i:null;m.position.copy(wp(i));
    const pr=pairs[i];if(pr){const d=wp(pr[1]).sub(wp(pr[0])).normalize();m.quaternion.setFromUnitVectors(up,d)}
