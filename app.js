@@ -4,15 +4,16 @@ const MODES=[
  {lv:2,t:'Stick Figure & Space',cn:'火柴人与空间',ready:true},
  {lv:1,t:'Major Forms & Proportions',cn:'大体块与比例',ready:true},
  {lv:3,t:'Loomis & Head',cn:'卢米斯与脑瓜',ready:true},
- {lv:5,t:'Block Figure & Pose',cn:'方块人与动态',ready:false},
+ {lv:5,t:'Block Figure & Pose',cn:'方块人与动态',ready:true},
  {lv:4,t:'Muscles & Skeleton',cn:'肌肉群与骨骼',ready:true,stub:true},
  {lv:6,t:'Light, Shadow & Material',cn:'光与影与材质',ready:true,stub:true}];
 const $=id=>document.getElementById(id);
+const kids=o=>o.children.filter(c=>!c.isMesh);
 const [scenes,meshes]=await Promise.all([fetch('scenes.json').then(r=>r.json()),fetch('meshes.json').then(r=>r.json())]);
 const menu=$('menu');menu.innerHTML='<h1>Body Practice</h1>';
 for(const m of MODES){const d=document.createElement('div');d.className='card';d.innerHTML=m.t+(m.ready?'':'<small>coming soon</small>');if(m.ready)d.onclick=()=>open(m);else d.style.opacity=.45;menu.append(d)}
-const r=new T.WebGLRenderer({antialias:true});r.setPixelRatio(Math.min(devicePixelRatio,2));$('view').append(r.domElement);
-let forms=null,head=null,stick=null,sc,cam,ctl,dl,persp=true,cur,geoms={},grp,sel=null,ray=new T.Raycaster(),blocks=false;
+const r=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});r.setPixelRatio(Math.min(devicePixelRatio,2));$('view').append(r.domElement);
+let pose=null,forms=null,head=null,stick=null,sc,cam,ctl,dl,persp=true,cur,geoms={},grp,sel=null,ray=new T.Raycaster(),blocks=false;
 function geom(id,useN){const key=id+(useN?'n':'');if(geoms[key])return geoms[key];if(id==='10210')return geoms[key]=new T.PlaneGeometry(1,1);const m=meshes[id];if(!m)return null;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(m.v,3));g.setIndex(m.i);if(m.uv)g.setAttribute('uv',new T.Float32BufferAttribute(m.uv,2));if(useN&&m.n)g.setAttribute('normal',new T.Float32BufferAttribute(m.n,3));else g.computeVertexNormals();return geoms[key]=g}
 const texs={},loader=new T.TextureLoader();const tex=id=>{if(!id)return null;if(texs[id])return texs[id];const t=loader.load('tex/'+id+'.png',undefined,undefined,()=>loader.load(id+'.png',r=>{t.image=r.image;t.needsUpdate=true}));return texs[id]=t};
 const HV=`varying vec2 vUv;varying vec3 vN;void main(){vUv=uv;vN=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
@@ -21,21 +22,21 @@ const hmats=[];
 function headMat(n){const c=n.mc||[1,1,1];const m=new T.ShaderMaterial({uniforms:{map:{value:tex(n.tx)},hasMap:{value:n.tx?1:0},color:{value:new T.Color(c[0],c[1],c[2])},op:{value:1},lit:{value:0},ka:{value:n.k==='kuang'?1:0},L:{value:new T.Vector3(0,0,1)}},vertexShader:HV,fragmentShader:HF,transparent:n.k==='kuang',depthWrite:n.k!=='kuang',side:T.DoubleSide});hmats.push(m);return m}
 function build(lv){const nodes=scenes[lv].slice().sort((p,q)=>(p.ord||0)-(q.ord||0)),by={};hmats.length=0;const root=new T.Group();
  for(const n of nodes){const o=new T.Object3D();o.name=n.name;o.visible=n.on;o.position.set(-n.p[0],n.p[1],n.p[2]);o.quaternion.set(n.q[0],-n.q[1],-n.q[2],n.q[3]);o.scale.set(...n.s);by[n.id]=o;o.userData=n;
-  const g=n.mesh&&geom(n.mesh,lv===3);if(g){const c=n.col||[.8,.8,.8,1];o.add(new T.Mesh(g,lv===3&&n.k?headMat(n):new T.MeshStandardMaterial({color:new T.Color(c[0],c[1],c[2]),roughness:.8,side:T.DoubleSide})))}}
+  const g=n.mesh&&geom(n.mesh,lv===3);if(g){const c=n.col||(lv===5&&n.mc?[...n.mc,1]:[.8,.8,.8,1]);o.add(new T.Mesh(g,lv===3&&n.k?headMat(n):new T.MeshStandardMaterial({color:new T.Color(c[0],c[1],c[2]),roughness:.8,side:T.DoubleSide})))}}
  for(const n of nodes){const o=by[n.id];(by[n.par]||root).add(o)}
  return root}
 function open(m){if(stick)stick.dispose();cur=m;$('menu').style.display='none';$('view').style.display='block';$('bar').style.display='flex';$('title').textContent=m.t;
  sc=new T.Scene();sc.background=new T.Color(0x3a3f47);
  if(m.stub){const c=new T.Mesh(new T.BoxGeometry(2,2,2),new T.MeshStandardMaterial({color:0xcccccc}));sc.add(c);$('note').textContent='This mode is an unfinished placeholder in the original app.';$('note').style.display='block'}
  else{const g=build(m.lv);grp=g;sc.add(g);$('note').style.display='none'}
- $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;$('hp').style.display=m.lv===3?'flex':'none';head=m.lv===3?headInit(grp):null;if(forms)forms.dispose();forms=m.lv===1?formsInit(grp):null;
- sc.add(new T.AmbientLight(0xffffff,.55));dl=new T.DirectionalLight(0xffffff,1.6);dl.position.set(3,5,6);sc.add(dl);
+ $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;$('hp').style.display=m.lv===3?'flex':'none';head=m.lv===3?headInit(grp):null;if(forms)forms.dispose();forms=m.lv===1?formsInit(grp):null;$('bp').style.display=m.lv===5?'flex':'none';if(pose)pose.dispose();pose=m.lv===5?poseInit(grp):null;
+ sc.add(new T.AmbientLight(0xffffff,.55));dl=new T.DirectionalLight(0xffffff,1.6);dl.position.set(-3,5,-6);sc.add(dl);
  persp=true;mkcam();resize()}
-function mkcam(){const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.1,100):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,10);
+function mkcam(){const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.1,100):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,-10);
  if(ctl)ctl.dispose();ctl=new OrbitControls(cam,r.domElement);ctl.enableDamping=true;ctl.target.set(0,0,0);ctl.update();$('persp').classList.toggle('on',persp)}
 function resize(){r.setSize(innerWidth,innerHeight);if(cam){const a=innerWidth/innerHeight;if(persp)cam.aspect=a;else{cam.left=-5*a;cam.right=5*a}cam.updateProjectionMatrix()}}
 addEventListener('resize',resize);
-$('back').onclick=()=>{if(forms)forms.dispose();forms=null;$('hp').style.display='none';head=null;$('pp').style.display='none';$('sp').style.display='none';if(stick)stick.dispose();stick=null;if(ctl)ctl.enabled=true;$('menu').style.display='grid';$('view').style.display='none';$('bar').style.display='none';$('note').style.display='none';cur=null};
+$('back').onclick=()=>{if(pose)pose.dispose();pose=null;$('bp').style.display='none';if(forms)forms.dispose();forms=null;$('hp').style.display='none';head=null;$('pp').style.display='none';$('sp').style.display='none';if(stick)stick.dispose();stick=null;if(ctl)ctl.enabled=true;$('menu').style.display='grid';$('view').style.display='none';$('bar').style.display='none';$('note').style.display='none';cur=null};
 $('persp').onclick=()=>{persp=!persp;mkcam();resize()};
 $('light').onclick=()=>{dl.position.applyAxisAngle(new T.Vector3(0,1,0),Math.PI/4)};
 $('reset').onclick=()=>{mkcam()};
@@ -49,7 +50,7 @@ function formsInit(g){
  const B={},real=new Set();R.traverse(o=>{if(PARTS.test(o.name)&&o.userData.mesh){B[o.name]=o;real.add(o)}});
  const Xi=B.Xiong1,Tu=B.Tun8,att=[[B.Xiong1,Tu,0],[B.Tou0,Xi,0],[B.DabiL2,Xi,1],[B.DabiR5,Xi,2],[B.DatuiL9,Tu,1],[B.DatuiR11,Tu,2]];
  const w=new T.Vector3();
- function bodyPos(){att.forEach(([n,p,i])=>{const a=p&&p.children[i];if(!n||!a)return;a.getWorldPosition(w);n.position.copy(n.parent.worldToLocal(w.clone()))})}
+ function bodyPos(){att.forEach(([n,p,i])=>{const a=p&&kids(p)[i];if(!n||!a)return;a.getWorldPosition(w);n.position.copy(n.parent.worldToLocal(w.clone()))})}
  let sel=null,tw=null,mode=1,bl=false;
  const mark=(o,on)=>o&&o.children.forEach(m=>{if(m.isMesh&&m.material.emissive)m.material.emissive.setHex(on?0x553300:0)});
  const sync=()=>{$('fw').value=sel?sel.scale.x/2:.5;$('fh').value=sel?sel.scale.y/2:.5};
@@ -70,11 +71,11 @@ function formsInit(g){
  $('fh').oninput=()=>{const s=2*$('fh').value;[sel,tw].forEach(o=>o&&(o.scale.y=s))};
  $('fz').onclick=()=>{R.traverse(o=>{if(o.userData.s)o.scale.set(...o.userData.s)});sync()};
  // local mode: step view of Xiong / Tun blocks (idx = floor(v*3)), random tilt of Tou / Tun, zero
- const stepv=()=>{const i=Math.min(3,Math.floor($('fs').value*3));[Tk.children[1],Tk.children[2]].forEach(gr=>gr&&gr.children.forEach((c,k)=>{if(k<4)c.visible=k===i}))};
+ const stepv=()=>{const i=Math.min(3,Math.floor($('fs').value*3));[kids(Tk)[1],kids(Tk)[2]].forEach(gr=>gr&&kids(gr).forEach((c,k)=>{if(k<4)c.visible=k===i}))};
  $('fs').oninput=stepv;
  const rnd=(a,b)=>(a+Math.random()*(b-a))*Math.PI/180;
- $('fr').onclick=()=>[Tk.children[0],Tk.children[2]].forEach(o=>{o.rotation.order='YXZ';o.rotation.set(rnd(-30,30),rnd(-60,60),rnd(-30,30))});
- $('fj').onclick=()=>[Tk.children[0],Tk.children[2]].forEach(o=>o.rotation.set(0,0,0));
+ $('fr').onclick=()=>[kids(Tk)[0],kids(Tk)[2]].forEach(o=>{o.rotation.order='YXZ';o.rotation.set(rnd(-30,30),rnd(-60,60),rnd(-30,30))});
+ $('fj').onclick=()=>[kids(Tk)[0],kids(Tk)[2]].forEach(o=>o.rotation.set(0,0,0));
  // tap to select a body part (original uses Ctrl+click)
  const E=r.domElement;let dn=null;const down=e=>dn=[e.clientX,e.clientY];
  const up=e=>{if(!dn||e.target!==E)return;const moved=Math.hypot(e.clientX-dn[0],e.clientY-dn[1])>6;dn=null;if(moved||mode!==1)return;
@@ -155,9 +156,9 @@ function stickInit(g){
 // --- Loomis & Head ---
 const HM=['Loomis Head','Basic Frame','Basic Male Head','Basic Female Head','Volume Understanding','Feature Blocks','Block Light & Shadow'];
 function headInit(g){
- const tou=g.getObjectByName('Tou'),G=tou.children,TB=[4,7,6,6,6,8,0],st=[0,0,0,0,0,0,0,0];let ti=0,zb=false,lit=0,v=0;
+ const tou=g.getObjectByName('Tou'),G=kids(tou),TB=[4,7,6,6,6,8,0],st=[0,0,0,0,0,0,0,0];let ti=0,zb=false,lit=0,v=0;
  const mt=[];tou.traverse(o=>{if(o.isMesh&&o.material.uniforms)mt.push(o.material)});
- const show=()=>G.forEach((gr,k)=>{if(k===7){gr.visible=zb;gr.children.forEach((c,j)=>c.visible=j===st[7]);return}gr.visible=k===ti;if(k===ti)gr.children.forEach((c,j)=>c.visible=j===st[k])});
+ const show=()=>G.forEach((gr,k)=>{if(k===7){gr.visible=zb;kids(gr).forEach((c,j)=>c.visible=j===st[7]);return}gr.visible=k===ti;if(k===ti)kids(gr).forEach((c,j)=>c.visible=j===st[k])});
  function steps(val){v=val;for(let k=0;k<7;k++)st[k]=Math.floor(val*TB[k]);st[7]=val<.8?0:1;show()}
  function mode(k){if(k===0){zb=false;$('hzb').classList.remove('on');$('hs').value=1;steps(1)}ti=k;$('hmode').textContent=HM[k]+' ▾';$('hlist').style.display='none';show()}
  const hl=$('hlist');hl.innerHTML='';HM.forEach((n,k)=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>mode(k);hl.append(b)});hl.style.display='none';
@@ -169,3 +170,48 @@ function headInit(g){
  $('hzb').classList.remove('on');$('hma').classList.remove('on');$('hs').value=0;$('hop').value=1;$('hmode').textContent=HM[0]+' ▾';
  steps(0);const L=new T.Vector3();
  return{update(){L.copy(dl.position).normalize();mt.forEach(m=>m.uniforms.L.value.copy(L))}}}
+
+// --- Block Figure & Pose ---
+const WL=[['Empty hand',11],['Greatsword',0],['Tachi',1],['Short blade',2],['Small shield',3],['Lance',4],['Large shield',5],['Longbow',6],['Arrows',7],['Spear',8],['Pistol',9],['Machine gun',10]];
+function poseInit(g){
+ const R=g.getObjectByName('Renti'),Z=g.getObjectByName('Zuobiao'),Md=g.getObjectByName('Model'),L=g.getObjectByName('lightboll');if(L)L.visible=false;
+ const P={};R.traverse(o=>{if(/^(pengu|datui[LR]|xigai[LR]|xiaotui[LR]|jiao[LR]|fu|xiong|bozi|tou|jian[LR]|shangbi[LR]|xiaobi[LR]|shou[LR])$/.test(o.name))P[o.name]=o});
+ const rings=Z.children,RC=[0xff4040,0x40ff40,0x4080ff];Z.visible=false;
+ rings.forEach((rg,i)=>rg.traverse(o=>{if(o.isMesh)o.material=new T.MeshBasicMaterial({color:RC[i],depthTest:false,transparent:true,opacity:.9})}));
+ rings.forEach(rg=>rg.traverse(o=>{if(o.isMesh)o.renderOrder=10}));
+ let sel=null,twin=null,zhou=3,last=null,dn=null,hand=null;const wp={shouL:11,shouR:11};
+ const mark=(o,on)=>o&&o.children.forEach(m=>{if(m.isMesh&&m.material.emissive)m.material.emissive.setHex(on?0x553300:0)});
+ const sv=new T.Vector3(),sq=new T.Quaternion(),ss=new T.Vector3();
+ function select(p){mark(sel,false);sel=twin=null;if(!p){Z.visible=false;Md.add(Z);return}
+  sel=p;twin=['xiaotuiL','xiaotuiR','xiong'].includes(p.name)?p.parent:null;mark(sel,true);
+  p.add(Z);Z.position.set(0,0,0);Z.quaternion.identity();p.updateWorldMatrix(true,false);p.matrixWorld.decompose(sv,sq,ss);Z.scale.set(4/ss.x,4/ss.y,4/ss.z);Z.visible=true;
+  const f=/^(xiaotui|xiaobi)[LR]$/.test(p.name)?[1,0,0]:/^jiao[LR]$/.test(p.name)?[1,0,1]:[1,1,1];rings.forEach((rg,i)=>rg.visible=!!f[i])}
+ const E=r.domElement,ndc=e=>{const b=E.getBoundingClientRect();ray.setFromCamera(new T.Vector2((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1),cam)};
+ const ax=[new T.Vector3(1,0,0),new T.Vector3(0,1,0),new T.Vector3(0,0,1)],sg=[1,-1,-1],qd=new T.Quaternion();
+ const rot=(o,i,deg)=>{if(o)o.quaternion.multiply(qd.setFromAxisAngle(ax[i],sg[i]*deg*Math.PI/180))};
+ const down=e=>{if(e.target!==E)return;dn=[e.clientX,e.clientY];last=[e.clientX,e.clientY];zhou=3;
+  if(sel){ndc(e);const h=ray.intersectObjects(rings.filter(x=>x.visible),true)[0];if(h){let o=h.object;while(o.parent!==Z)o=o.parent;zhou=rings.indexOf(o);ctl.enabled=false;E.setPointerCapture(e.pointerId)}}};
+ const move=e=>{if(zhou>2)return;const d=-((e.clientX-last[0])+(e.clientY-last[1]))*1.0;last=[e.clientX,e.clientY];rot(sel,zhou,d);rot(twin,zhou,d)};
+ const up=e=>{if(e.target!==E&&zhou>2)return;const was=zhou;zhou=3;ctl.enabled=true;if(was<3||!dn)return;
+  if(Math.hypot(e.clientX-dn[0],e.clientY-dn[1])>6)return;ndc(e);const h=ray.intersectObject(R,true).find(x=>x.object.isMesh&&x.object.visible);
+  let o=h&&h.object.parent;while(o&&!P[o.name])o=o.parent;select(o||null)};
+ E.addEventListener('pointerdown',down);E.addEventListener('pointermove',move);E.addEventListener('pointerup',up);
+ // resets
+ $('bjb').onclick=()=>{if(sel)sel.quaternion.identity();if(twin)twin.quaternion.identity()};
+ $('bqj').onclick=()=>{select(null);R.traverse(o=>{if(o!==R)o.quaternion.identity()})};
+ // weapons
+ const wl=$('bwl');wl.innerHTML='';WL.forEach(([n,a])=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>{setW(hand,a);wl.style.display='none'};wl.append(b)});wl.style.display='none';
+ const setW=(nm,a)=>{const s=P[nm];if(!s)return;const c=wp[nm];if(c!==11&&kids(s)[c])kids(s)[c].visible=false;if(a!==11&&kids(s)[a])kids(s)[a].visible=true;wp[nm]=a};
+ $('bls').onclick=()=>{hand='shouL';wl.style.display=wl.style.display==='grid'&&hand==='shouL'?'none':'grid'};
+ $('brs').onclick=()=>{hand='shouR';wl.style.display='grid'};
+ // saved poses (12 slots, localStorage)
+ let del=false;const key=i=>'bp_slot_'+i;
+ const snap=()=>({q:Object.fromEntries(Object.entries(P).map(([k,o])=>[k,o.quaternion.toArray()])),w:{...wp}});
+ const apply=s=>{for(const k in s.q)P[k].quaternion.fromArray(s.q[k]);for(const k in s.w){const c=wp[k];if(c!==11&&kids(P[k])[c])kids(P[k])[c].visible=false;wp[k]=11;setW(k,s.w[k])}};
+ const thumb=()=>{const c=document.createElement('canvas');c.width=c.height=96;const s=Math.min(E.width,E.height);c.getContext('2d').drawImage(E,(E.width-s)/2,(E.height-s)/2,s,s,0,0,96,96);return c.toDataURL('image/jpeg',.6)};
+ const ld=i=>{try{return JSON.parse(localStorage.getItem(key(i)))}catch(e){return null}};
+ function slots(){const d=$('bslots');d.innerHTML='';for(let i=0;i<12;i++){const b=document.createElement('button'),s=ld(i);b.textContent=s?'':'Click to save';if(s)b.style.backgroundImage='url('+s.t+')';
+  b.onclick=()=>{const cur=ld(i);try{if(del){localStorage.removeItem(key(i))}else if(cur){apply(cur.p)}else{select(null);localStorage.setItem(key(i),JSON.stringify({p:snap(),t:thumb()}))}}catch(e){}slots()};d.append(b)}}
+ $('bsv').onclick=()=>{select(null);const d=$('bsl');d.style.display=d.style.display==='none'?'block':'none';slots()};
+ $('bdel').onclick=()=>{del=!del;$('bdel').classList.toggle('on',del)};del=false;$('bdel').classList.remove('on');$('bsl').style.display='none';
+ return{dispose(){E.removeEventListener('pointerdown',down);E.removeEventListener('pointermove',move);E.removeEventListener('pointerup',up);ctl.enabled=true}}}
