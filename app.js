@@ -30,7 +30,7 @@ function open(m){if(stick)stick.dispose();cur=m;$('menu').style.display='none';$
  $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;$('hp').style.display=m.lv===3?'flex':'none';head=m.lv===3?headInit(grp):null;if(forms)forms.dispose();forms=m.lv===1?formsInit(grp):null;$('bp').style.display=m.lv===5?'flex':'none';if(pose)pose.dispose();pose=m.lv===5?poseInit(grp):null;
  sc.add(new T.AmbientLight(0xffffff,.55));dl=new T.DirectionalLight(0xffffff,1.6);dl.position.set(-3,5,-6);sc.add(dl);
  persp=true;mkcam();resize()}
-let prevFov=60;function mkcam(){prevFov=60;$('pov').value=60;$('povl').style.display=persp?'flex':'none';const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.02,300):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,-10);
+let prevFov=60;function mkcam(){prevFov=60;$('pov').value=60;$('povn').value=60;$('povl').style.display=persp?'flex':'none';const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.02,300):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,-10);
  if(ctl)ctl.dispose();ctl=new OrbitControls(cam,r.domElement);ctl.enableDamping=true;ctl.target.set(0,0,0);ctl.update();$('persp').classList.toggle('on',persp)}
 function resize(){r.setSize(innerWidth,innerHeight);if(cam){const a=innerWidth/innerHeight;if(persp)cam.aspect=a;else{cam.left=-5*a;cam.right=5*a}cam.updateProjectionMatrix()}}
 addEventListener('resize',resize);
@@ -132,12 +132,14 @@ function stickInit(g){
  function mk(svg,list,drag){const o={};list.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',drag&&DR[S.plane].has(i)?14:8);c.dataset.i=i;svg.append(c);o[i]=c});return o}
  function frame(svg){svg.innerHTML='<rect x="-200" y="-200" width="400" height="400" fill="none" stroke="#7a8499" stroke-width="2"/><line x1="-200" x2="200" y1="0" y2="0" stroke="#555"/><line y1="-200" y2="200" x1="0" x2="0" stroke="#555"/><line x1="-200" y1="-200" x2="200" y2="200" stroke="#444"/><line x1="200" y1="-200" x2="-200" y2="200" stroke="#444"/>'}
  function buildPad(){frame(pad);dots.length=0;GR[S.plane].forEach(i=>{const c=document.createElementNS(NS,'circle');const d=S.move===2||DR[S.plane].has(i);c.setAttribute('r',d?14:8);c.setAttribute('fill',d?COL[S.plane]:'#999');c.dataset.i=i;if(d)c.dataset.d=1;pad.append(c);dots[i]=c})}
- function buildMinis(){minis.innerHTML='';GR.forEach((gr,pi)=>{const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','-250 -250 500 500');frame(s);gr.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',12);c.setAttribute('fill',COL[pi]);s.append(c);mdots[i]=c});minis.append(s)})}
- function draw(){if(S.op==='op'){for(const i in dots){const[x,y]=pos(+i);dots[i].setAttribute('cx',x);dots[i].setAttribute('cy',y)}}else for(const i in mdots){const[x,y]=pos(+i);mdots[i].setAttribute('cx',x);mdots[i].setAttribute('cy',y)}}
- let dp=null;const sp=e=>{const q=pad.createSVGPoint();q.x=e.clientX;q.y=e.clientY;return q.matrixTransform(pad.getScreenCTM().inverse())};
- pad.addEventListener('pointerdown',e=>{if(e.target.dataset.d){dp=+e.target.dataset.i;pad.setPointerCapture(e.pointerId)}});
- pad.addEventListener('pointermove',e=>{if(dp==null)return;const q=sp(e),x=Math.max(-200,Math.min(200,q.x)),z=Math.max(-200,Math.min(200,q.y));if(S.move===2)radialPad(dp,-x/U,-z/U);else{P[dp].position.x=-x/U;P[dp].position.z=-z/U}});
- pad.addEventListener('pointerup',()=>dp=null);
+ const mhits=[];function buildMinis(){minis.innerHTML='';GR.forEach((gr,pi)=>{const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','-250 -250 500 500');frame(s);gr.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',14);c.setAttribute('fill',COL[pi]);c.style.pointerEvents='none';s.append(c);mdots[i]=c;
+   if(S.move===2||DR[pi].has(i)){const h=document.createElementNS(NS,'circle');h.setAttribute('r',40);h.setAttribute('fill','transparent');h.dataset.i=i;h.dataset.d=1;s.append(h);mhits[i]=h}else mhits[i]=null});attach(s);minis.append(s)})}
+ function draw(){if(S.op==='op'){for(const i in dots){const[x,y]=pos(+i);dots[i].setAttribute('cx',x);dots[i].setAttribute('cy',y)}}else for(const i in mdots){const[x,y]=pos(+i);mdots[i].setAttribute('cx',x);mdots[i].setAttribute('cy',y);const h=mhits[i];if(h){h.setAttribute('cx',x);h.setAttribute('cy',y)}}}
+ function attach(svg){let dp=null;const sp=e=>{const q=svg.createSVGPoint();q.x=e.clientX;q.y=e.clientY;return q.matrixTransform(svg.getScreenCTM().inverse())};
+  svg.addEventListener('pointerdown',e=>{if(e.target.dataset&&e.target.dataset.d){dp=+e.target.dataset.i;svg.setPointerCapture(e.pointerId)}});
+  svg.addEventListener('pointermove',e=>{if(dp==null)return;const q=sp(e),x=Math.max(-200,Math.min(200,q.x)),z=Math.max(-200,Math.min(200,q.y));if(S.move===2)radialPad(dp,-x/U,-z/U);else{P[dp].position.x=-x/U;P[dp].position.z=-z/U}});
+  const end=()=>dp=null;svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end)}
+ attach(pad);
  // --- twist scrollbars: (v-0.5)*360 deg about vertical (original DoModelRot) ---
  const ch=m=>m?m.children.filter(c=>!c.userData.pt&&c.isObject3D&&!c.name.startsWith('P')):[];
  function twist(k,v){const a=(v-.5)*2*Math.PI;
@@ -154,7 +156,7 @@ function stickInit(g){
  const setOp=o=>{S.op=o;$('op').style.display=o==='op'?'block':'none';$('sh').style.display=o==='op'?'none':'block';$('bop').classList.toggle('on',o==='op');$('bsh').classList.toggle('on',o!=='op')};
  $('bop').onclick=()=>setOp('op');$('bsh').onclick=()=>setOp('sh');setOp('op');
  $('po').oninput=()=>planes.forEach(m=>m.opacity=$('po').value*.6);$('po').value=1;planes.forEach(m=>m.opacity=.6);
- const setMove=k=>{S.move=k;[0,1,2].forEach(j=>$('mv'+j).classList.toggle('on',j===k));buildPad()};[0,1,2].forEach(k=>$('mv'+k).onclick=()=>setMove(k));setMove(0);
+ const setMove=k=>{S.move=k;[0,1,2].forEach(j=>$('mv'+j).classList.toggle('on',j===k));buildPad();buildMinis()};[0,1,2].forEach(k=>$('mv'+k).onclick=()=>setMove(k));setMove(0);
  $('rst').onclick=()=>{P.forEach((p,i)=>{p.position.copy(rest[i][0]);p.quaternion.copy(rest[i][1])});
   M.forEach(m=>{if(!m)return;ch(m).forEach(c=>c.rotation.set(0,0,0));if([9,11].includes(M.indexOf(m)))m.rotation.set(0,0,0)});
   for(const k in sv)delete sv[k];buildSc()};
@@ -242,5 +244,11 @@ function poseInit(g){
  return{dispose(){E.removeEventListener('pointerdown',down);E.removeEventListener('pointermove',move);E.removeEventListener('pointerup',up);ctl.enabled=true}}}
 
 // POV (field of view) with dolly compensation so the subject keeps its size
-$('pov').oninput=()=>{if(!persp||!cam||!ctl)return;const f=+$('pov').value,dir=cam.position.clone().sub(ctl.target),d=dir.length()*Math.tan(prevFov*Math.PI/360)/Math.tan(f*Math.PI/360);
- cam.fov=f;cam.position.copy(ctl.target).add(dir.normalize().multiplyScalar(d));cam.updateProjectionMatrix();ctl.update();prevFov=f};
+function setPov(f){if(!persp||!cam||!ctl||!(f>0))return;f=Math.max(15,Math.min(170,Math.round(f)));$('pov').value=$('povn').value=f;const dir=cam.position.clone().sub(ctl.target),d=dir.length()*Math.tan(prevFov*Math.PI/360)/Math.tan(f*Math.PI/360);
+ cam.fov=f;cam.position.copy(ctl.target).add(dir.normalize().multiplyScalar(d));cam.updateProjectionMatrix();ctl.update();prevFov=f}
+$('pov').oninput=()=>setPov(+$('pov').value);
+$('povn').onchange=()=>setPov(parseFloat($('povn').value)||prevFov);
+$('povn').onkeydown=e=>{if(e.key==='Enter'){setPov(parseFloat($('povn').value)||prevFov);e.target.blur()}};
+
+document.addEventListener('contextmenu',e=>{if(e.target.tagName!=='INPUT')e.preventDefault()});
+document.addEventListener('selectstart',e=>{if(e.target.tagName!=='INPUT')e.preventDefault()});
