@@ -32,7 +32,7 @@ function open(m){if(stick)stick.dispose();cur=m;$('menu').style.display='none';$
  $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;$('hp').style.display=m.lv===3?'flex':'none';head=m.lv===3?headInit(grp):null;if(forms)forms.dispose();forms=m.lv===1?formsInit(grp):null;$('bp').style.display=m.lv===5?'flex':'none';if(pose)pose.dispose();pose=m.lv===5?poseInit(grp):null;
  sc.add(new T.AmbientLight(0xffffff,.55));dl=new T.DirectionalLight(0xffffff,1.6);dl.position.set(-3,5,-6);sc.add(dl);
  persp=true;mkcam();resize()}
-function mkcam(){const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.1,100):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,-10);
+let prevFov=60;function mkcam(){prevFov=60;$('pov').value=60;$('povl').style.display=persp?'flex':'none';const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.1,300):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,-10);
  if(ctl)ctl.dispose();ctl=new OrbitControls(cam,r.domElement);ctl.enableDamping=true;ctl.target.set(0,0,0);ctl.update();$('persp').classList.toggle('on',persp)}
 function resize(){r.setSize(innerWidth,innerHeight);if(cam){const a=innerWidth/innerHeight;if(persp)cam.aspect=a;else{cam.left=-5*a;cam.right=5*a}cam.updateProjectionMatrix()}}
 addEventListener('resize',resize);
@@ -52,8 +52,8 @@ function formsInit(g){
  const w=new T.Vector3();
  function bodyPos(){att.forEach(([n,p,i])=>{const a=p&&kids(p)[i];if(!n||!a)return;a.getWorldPosition(w);n.position.copy(n.parent.worldToLocal(w.clone()))})}
  let sel=null,tw=null,mode=1,bl=false;
- const mark=(o,on)=>o&&o.children.forEach(m=>{if(m.isMesh&&m.material.emissive)m.material.emissive.setHex(on?0x553300:0)});
- const sync=()=>{$('fw').value=sel?sel.scale.x/2:.5;$('fh').value=sel?sel.scale.y/2:.5};
+ const mark=(o,on)=>o&&o.children.forEach(m=>{if(m.isMesh&&m.material.emissive)m.material.emissive.setHex(on?0x884400:0)});
+ const sync=()=>{$('fw').value=sel?sel.scale.x/2:.5;$('fh').value=sel?sel.scale.y/2:.5;$('fw').disabled=$('fh').disabled=!sel;$('fhint').textContent=sel?'Selected: '+sel.name+(tw?' + '+tw.name:''):'Tap a body part to select it'};
  const setMode=k=>{mode=k;mark(sel,false);mark(tw,false);sel=tw=null;sync();R.visible=k===1;Tk.visible=k===2;$('qs').style.display=k===1?'flex':'none';$('jb').style.display=k===2?'flex':'none';$('b1').classList.toggle('on',k===1);$('b2').classList.toggle('on',k===2)};
  $('b1').onclick=()=>setMode(1);$('b2').onclick=()=>setMode(2);
  // ruler lines (BL): horizontal marks at the heights of point0..5, from 0.7n to 4n
@@ -89,7 +89,7 @@ function formsInit(g){
 function stickInit(g){
  const P=[],M=[];g.traverse(o=>{let m;if(m=/^P(\d+)$/.exec(o.name))P[+m[1]]=o;if(m=/^(\d\d)[A-Z]/.exec(o.name))M[+m[1]]=o});
  const rest=P.map(p=>[p.position.clone(),p.quaternion.clone()]);
- const S={mode:0,free:false,plane:0,op:'op'},wp=i=>P[i].getWorldPosition(new T.Vector3());
+ const S={mode:0,move:0,plane:0,op:'op'},wp=i=>P[i].getWorldPosition(new T.Vector3());
  const GR=[[0],[1,2,3],[4],[5,6,7],[8,10],[9,11]],DR=[[0],[1],[4],[5],[8,10],[9,11]].map(a=>new Set(a));
  const COL=['#ff6b59','#ffc759','#8ce84a','#40e8e0','#648cf7','#c787f7'],NAMES=['Head','Chest','Abdomen','Hip','Knee','Foot'];
  const SC=[[0],[1],[],[5],[],[6,7]],SCN={0:'Head',1:'Chest',5:'Hip',6:'Left leg',7:'Right leg'},sv={};
@@ -111,18 +111,34 @@ function stickInit(g){
    m.children.forEach(c=>{c.visible=!/_(yuan|fang)$/.test(c.name)||c.name.endsWith(S.mode===2?'_fang':'_yuan')})});
   lines.forEach(l=>l.m.forEach((m,k)=>{const a=wp(l.ix[k]),b=wp(l.ix[k+1]);m.position.copy(a).add(b).multiplyScalar(.5);m.scale.set(1,a.distanceTo(b),1);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),b.clone().sub(a).normalize())}));
   draw()}
+
+ // --- radial movement: bone lengths are kept, the point swings on a sphere around its parent joint ---
+ const PAR={0:1,1:4,4:5,8:6,9:8,10:7,11:10},DESC={0:[0],1:[1,0,2,3],4:[4,1,0,2,3],8:[8,9],9:[9],10:[10,11],11:[11]};
+ const setW=(i,v)=>{P[i].parent.updateWorldMatrix(true,false);P[i].position.copy(P[i].parent.worldToLocal(v.clone()))};
+ function radial(i,target){const W=P.map((_,k)=>wp(k)),set=new Map(),Q=new T.Quaternion();
+  if(i===5){const d=target.clone().sub(W[5]);for(let k=0;k<12;k++)set.set(k,W[k].clone().add(d))}
+  else if(i===2||i===3||i===6||i===7){const c=i<4?W[1]:W[5],o=i<4?(i===2?3:2):(i===6?7:6);
+   Q.setFromUnitVectors(W[i].clone().sub(c).normalize(),target.clone().sub(c).normalize());
+   [i,o].sort((x,y)=>x-y).forEach(k=>set.set(k,c.clone().add(W[k].clone().sub(c).applyQuaternion(Q))));
+   if(i>=6)[[6,[8,9]],[7,[10,11]]].forEach(([h,ls])=>{const d=set.get(h).clone().sub(W[h]);ls.forEach(k=>set.set(k,W[k].clone().add(d)))})}
+  else{const p=PAR[i];if(p==null)return;const c=W[p];Q.setFromUnitVectors(W[i].clone().sub(c).normalize(),target.clone().sub(c).normalize());
+   DESC[i].forEach(k=>set.set(k,c.clone().add(W[k].clone().sub(c).applyQuaternion(Q))))}
+  set.forEach((v,k)=>setW(k,v))}
+ function radialPad(i,x,z){const W=wp(i);if(i===5){radial(5,new T.Vector3(x,W.y,z));return}
+  const p=i===2||i===3?1:i===6||i===7?5:PAR[i],c=wp(p),L=W.distanceTo(c);let dx=x-c.x,dz=z-c.z;const h=Math.hypot(dx,dz);if(h>L*.999){dx*=L*.999/h;dz*=L*.999/h}
+  const dy=Math.sqrt(Math.max(L*L-dx*dx-dz*dz,0)),sg=(W.y-c.y)<-1e-3?-1:1;radial(i,new T.Vector3(c.x+dx,c.y+sg*dy,c.z+dz))}
  // --- top-view pads (x,z): 400px = 3 units, original DoDrag mapping ---
  const NS='http://www.w3.org/2000/svg',U=400/3,pad=$('pad'),minis=$('minis');
  const pos=i=>{const w=wp(i);return[-w.x*U,-w.z*U]};      // svg coords (y down)
  const dots=[],mdots=[];
  function mk(svg,list,drag){const o={};list.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',drag&&DR[S.plane].has(i)?14:8);c.dataset.i=i;svg.append(c);o[i]=c});return o}
  function frame(svg){svg.innerHTML='<line x1="-200" x2="200" y1="0" y2="0" stroke="#555"/><line y1="-200" y2="200" x1="0" x2="0" stroke="#555"/><line x1="-200" y1="-200" x2="200" y2="200" stroke="#444"/><line x1="200" y1="-200" x2="-200" y2="200" stroke="#444"/>'}
- function buildPad(){frame(pad);dots.length=0;GR[S.plane].forEach(i=>{const c=document.createElementNS(NS,'circle');const d=DR[S.plane].has(i);c.setAttribute('r',d?14:8);c.setAttribute('fill',d?COL[S.plane]:'#999');c.dataset.i=i;if(d)c.dataset.d=1;pad.append(c);dots[i]=c})}
+ function buildPad(){frame(pad);dots.length=0;GR[S.plane].forEach(i=>{const c=document.createElementNS(NS,'circle');const d=S.move===2||DR[S.plane].has(i);c.setAttribute('r',d?14:8);c.setAttribute('fill',d?COL[S.plane]:'#999');c.dataset.i=i;if(d)c.dataset.d=1;pad.append(c);dots[i]=c})}
  function buildMinis(){minis.innerHTML='';GR.forEach((gr,pi)=>{const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','-200 -200 400 400');frame(s);gr.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',12);c.setAttribute('fill',COL[pi]);s.append(c);mdots[i]=c});minis.append(s)})}
  function draw(){if(S.op==='op'){for(const i in dots){const[x,y]=pos(+i);dots[i].setAttribute('cx',x);dots[i].setAttribute('cy',y)}}else for(const i in mdots){const[x,y]=pos(+i);mdots[i].setAttribute('cx',x);mdots[i].setAttribute('cy',y)}}
  let dp=null;const sp=e=>{const q=pad.createSVGPoint();q.x=e.clientX;q.y=e.clientY;return q.matrixTransform(pad.getScreenCTM().inverse())};
  pad.addEventListener('pointerdown',e=>{if(e.target.dataset.d){dp=+e.target.dataset.i;pad.setPointerCapture(e.pointerId)}});
- pad.addEventListener('pointermove',e=>{if(dp==null)return;const q=sp(e),x=Math.max(-200,Math.min(200,q.x)),z=Math.max(-200,Math.min(200,q.y));P[dp].position.x=-x/U;P[dp].position.z=-z/U});
+ pad.addEventListener('pointermove',e=>{if(dp==null)return;const q=sp(e),x=Math.max(-200,Math.min(200,q.x)),z=Math.max(-200,Math.min(200,q.y));if(S.move===2)radialPad(dp,-x/U,-z/U);else{P[dp].position.x=-x/U;P[dp].position.z=-z/U}});
  pad.addEventListener('pointerup',()=>dp=null);
  // --- twist scrollbars: (v-0.5)*360 deg about vertical (original DoModelRot) ---
  const ch=m=>m?m.children.filter(c=>!c.userData.pt&&c.isObject3D&&!c.name.startsWith('P')):[];
@@ -140,15 +156,15 @@ function stickInit(g){
  const setOp=o=>{S.op=o;$('op').style.display=o==='op'?'block':'none';$('sh').style.display=o==='op'?'none':'block';$('bop').classList.toggle('on',o==='op');$('bsh').classList.toggle('on',o!=='op')};
  $('bop').onclick=()=>setOp('op');$('bsh').onclick=()=>setOp('sh');setOp('op');
  $('po').oninput=()=>planes.forEach(m=>m.opacity=$('po').value*.6);$('po').value=1;planes.forEach(m=>m.opacity=.6);
- $('free').classList.remove('on');$('free').onclick=()=>{S.free=!S.free;$('free').classList.toggle('on',S.free)};
+ const setMove=k=>{S.move=k;[0,1,2].forEach(j=>$('mv'+j).classList.toggle('on',j===k));buildPad()};[0,1,2].forEach(k=>$('mv'+k).onclick=()=>setMove(k));setMove(0);
  $('rst').onclick=()=>{P.forEach((p,i)=>{p.position.copy(rest[i][0]);p.quaternion.copy(rest[i][1])});
   M.forEach(m=>{if(!m)return;ch(m).forEach(c=>c.rotation.set(0,0,0));if([9,11].includes(M.indexOf(m)))m.rotation.set(0,0,0)});
   for(const k in sv)delete sv[k];buildSc()};
  // optional free 3D drag (extra, not in original)
  const E=r.domElement;let drag=null,pl=new T.Plane(),pt=new T.Vector3(),v2=new T.Vector2();
  const ndc=e=>{const b=E.getBoundingClientRect();v2.set((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1);ray.setFromCamera(v2,cam)};
- const down=e=>{if(!S.free||e.target!==E)return;ndc(e);const h=ray.intersectObjects(hit,false)[0];if(!h)return;drag=h.object.userData.pt;ctl.enabled=false;pl.setFromNormalAndCoplanarPoint(cam.getWorldDirection(new T.Vector3()),wp(drag));E.setPointerCapture(e.pointerId)};
- const move=e=>{if(drag==null)return;ndc(e);if(!ray.ray.intersectPlane(pl,pt))return;const p=P[drag];p.position.copy(p.parent.worldToLocal(pt.clone()))};
+ const down=e=>{if(S.move<1||e.target!==E)return;ndc(e);const h=ray.intersectObjects(hit,false)[0];if(!h)return;drag=h.object.userData.pt;ctl.enabled=false;pl.setFromNormalAndCoplanarPoint(cam.getWorldDirection(new T.Vector3()),wp(drag));E.setPointerCapture(e.pointerId)};
+ const move=e=>{if(drag==null)return;ndc(e);if(!ray.ray.intersectPlane(pl,pt))return;if(S.move===2)radial(drag,pt.clone());else{const p=P[drag];p.position.copy(p.parent.worldToLocal(pt.clone()))}};
  const up_=()=>{drag=null;ctl.enabled=true};
  E.addEventListener('pointerdown',down);E.addEventListener('pointermove',move);E.addEventListener('pointerup',up_);
  return{update,dispose(){E.removeEventListener('pointerdown',down);E.removeEventListener('pointermove',move);E.removeEventListener('pointerup',up_)}}}
@@ -215,3 +231,7 @@ function poseInit(g){
  $('bsv').onclick=()=>{select(null);const d=$('bsl');d.style.display=d.style.display==='none'?'block':'none';slots()};
  $('bdel').onclick=()=>{del=!del;$('bdel').classList.toggle('on',del)};del=false;$('bdel').classList.remove('on');$('bsl').style.display='none';
  return{dispose(){E.removeEventListener('pointerdown',down);E.removeEventListener('pointermove',move);E.removeEventListener('pointerup',up);ctl.enabled=true}}}
+
+// POV (field of view) with dolly compensation so the subject keeps its size
+$('pov').oninput=()=>{if(!persp||!cam||!ctl)return;const f=+$('pov').value,dir=cam.position.clone().sub(ctl.target),d=dir.length()*Math.tan(prevFov*Math.PI/360)/Math.tan(f*Math.PI/360);
+ cam.fov=f;cam.position.copy(ctl.target).add(dir.normalize().multiplyScalar(d));cam.updateProjectionMatrix();ctl.update();prevFov=f};
