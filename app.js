@@ -4,9 +4,7 @@ const MODES=[
  {lv:2,t:'Stick Figure & Space',cn:'火柴人与空间',ready:true},
  {lv:1,t:'Major Forms & Proportions',cn:'大体块与比例',ready:true},
  {lv:3,t:'Loomis & Head',cn:'卢米斯与脑瓜',ready:true},
- {lv:5,t:'Block Figure & Pose',cn:'方块人与动态',ready:true},
- {lv:4,t:'Muscles & Skeleton',cn:'肌肉群与骨骼',ready:true,stub:true},
- {lv:6,t:'Light, Shadow & Material',cn:'光与影与材质',ready:true,stub:true}];
+ {lv:5,t:'Block Figure & Pose',cn:'方块人与动态',ready:true}];
 const $=id=>document.getElementById(id);
 const kids=o=>o.children.filter(c=>!c.isMesh);
 const [scenes,meshes]=await Promise.all([fetch('scenes.json').then(r=>r.json()),fetch('meshes.json').then(r=>r.json())]);
@@ -32,7 +30,7 @@ function open(m){if(stick)stick.dispose();cur=m;$('menu').style.display='none';$
  $('pp').style.display=m.lv===1?'flex':'none';$('sp').style.display=m.lv===2?'flex':'none';stick=m.lv===2&&!m.stub?stickInit(grp):null;$('hp').style.display=m.lv===3?'flex':'none';head=m.lv===3?headInit(grp):null;if(forms)forms.dispose();forms=m.lv===1?formsInit(grp):null;$('bp').style.display=m.lv===5?'flex':'none';if(pose)pose.dispose();pose=m.lv===5?poseInit(grp):null;
  sc.add(new T.AmbientLight(0xffffff,.55));dl=new T.DirectionalLight(0xffffff,1.6);dl.position.set(-3,5,-6);sc.add(dl);
  persp=true;mkcam();resize()}
-let prevFov=60;function mkcam(){prevFov=60;$('pov').value=60;$('povl').style.display=persp?'flex':'none';const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.1,300):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,-10);
+let prevFov=60;function mkcam(){prevFov=60;$('pov').value=60;$('povl').style.display=persp?'flex':'none';const a=innerWidth/innerHeight;cam=persp?new T.PerspectiveCamera(60,a,.02,300):new T.OrthographicCamera(-5*a,5*a,5,-5,.1,100);cam.position.set(0,0,-10);
  if(ctl)ctl.dispose();ctl=new OrbitControls(cam,r.domElement);ctl.enableDamping=true;ctl.target.set(0,0,0);ctl.update();$('persp').classList.toggle('on',persp)}
 function resize(){r.setSize(innerWidth,innerHeight);if(cam){const a=innerWidth/innerHeight;if(persp)cam.aspect=a;else{cam.left=-5*a;cam.right=5*a}cam.updateProjectionMatrix()}}
 addEventListener('resize',resize);
@@ -132,9 +130,9 @@ function stickInit(g){
  const pos=i=>{const w=wp(i);return[-w.x*U,-w.z*U]};      // svg coords (y down)
  const dots=[],mdots=[];
  function mk(svg,list,drag){const o={};list.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',drag&&DR[S.plane].has(i)?14:8);c.dataset.i=i;svg.append(c);o[i]=c});return o}
- function frame(svg){svg.innerHTML='<line x1="-200" x2="200" y1="0" y2="0" stroke="#555"/><line y1="-200" y2="200" x1="0" x2="0" stroke="#555"/><line x1="-200" y1="-200" x2="200" y2="200" stroke="#444"/><line x1="200" y1="-200" x2="-200" y2="200" stroke="#444"/>'}
+ function frame(svg){svg.innerHTML='<rect x="-200" y="-200" width="400" height="400" fill="none" stroke="#7a8499" stroke-width="2"/><line x1="-200" x2="200" y1="0" y2="0" stroke="#555"/><line y1="-200" y2="200" x1="0" x2="0" stroke="#555"/><line x1="-200" y1="-200" x2="200" y2="200" stroke="#444"/><line x1="200" y1="-200" x2="-200" y2="200" stroke="#444"/>'}
  function buildPad(){frame(pad);dots.length=0;GR[S.plane].forEach(i=>{const c=document.createElementNS(NS,'circle');const d=S.move===2||DR[S.plane].has(i);c.setAttribute('r',d?14:8);c.setAttribute('fill',d?COL[S.plane]:'#999');c.dataset.i=i;if(d)c.dataset.d=1;pad.append(c);dots[i]=c})}
- function buildMinis(){minis.innerHTML='';GR.forEach((gr,pi)=>{const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','-200 -200 400 400');frame(s);gr.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',12);c.setAttribute('fill',COL[pi]);s.append(c);mdots[i]=c});minis.append(s)})}
+ function buildMinis(){minis.innerHTML='';GR.forEach((gr,pi)=>{const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','-250 -250 500 500');frame(s);gr.forEach(i=>{const c=document.createElementNS(NS,'circle');c.setAttribute('r',12);c.setAttribute('fill',COL[pi]);s.append(c);mdots[i]=c});minis.append(s)})}
  function draw(){if(S.op==='op'){for(const i in dots){const[x,y]=pos(+i);dots[i].setAttribute('cx',x);dots[i].setAttribute('cy',y)}}else for(const i in mdots){const[x,y]=pos(+i);mdots[i].setAttribute('cx',x);mdots[i].setAttribute('cy',y)}}
  let dp=null;const sp=e=>{const q=pad.createSVGPoint();q.x=e.clientX;q.y=e.clientY;return q.matrixTransform(pad.getScreenCTM().inverse())};
  pad.addEventListener('pointerdown',e=>{if(e.target.dataset.d){dp=+e.target.dataset.i;pad.setPointerCapture(e.pointerId)}});
@@ -205,10 +203,21 @@ function poseInit(g){
  const E=r.domElement,ndc=e=>{const b=E.getBoundingClientRect();ray.setFromCamera(new T.Vector2((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1),cam)};
  const ax=[new T.Vector3(1,0,0),new T.Vector3(0,1,0),new T.Vector3(0,0,1)],sg=[1,-1,-1],qd=new T.Quaternion();
  const rot=(o,i,deg)=>{if(o)o.quaternion.multiply(qd.setFromAxisAngle(ax[i],sg[i]*deg*Math.PI/180))};
+
+ // ring picking by screen distance (rings are thin, a finger is not): nearest ring line within 34 px wins
+ const RI=rings.map(rg=>{let m;rg.traverse(o=>{if(o.isMesh&&!m)m=o});const pos=m.geometry.attributes.position,bb=new T.Box3().setFromBufferAttribute(pos),sz=bb.getSize(new T.Vector3()),c=bb.getCenter(new T.Vector3()).toArray();
+  const n=sz.x<=sz.y&&sz.x<=sz.z?0:sz.y<=sz.z?1:2,a=(n+1)%3,b=(n+2)%3;let lo=1e9,hi=0;for(let i=0;i<pos.count;i++){const r=Math.hypot(pos.getComponent(i,a)-c[a],pos.getComponent(i,b)-c[b]);if(r<lo)lo=r;if(r>hi)hi=r}return{m,a,b,c,r:(lo+hi)/2}});
+ const sd=(px,py,x1,y1,x2,y2)=>{const dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/l)):0;return Math.hypot(px-x1-t*dx,py-y1-t*dy)};
+ const pv=new T.Vector3();
+ function pickRing(e){const rc=E.getBoundingClientRect(),px=e.clientX-rc.left,py=e.clientY-rc.top;let best=-1,bd=34;
+  rings.forEach((rg,k)=>{if(!rg.visible||!Z.visible)return;const{m,a,b,c,r}=RI[k];m.updateWorldMatrix(true,false);let pr=null;
+   for(let s=0;s<=48;s++){const t=s/48*Math.PI*2,p=[c[0],c[1],c[2]];p[a]+=Math.cos(t)*r;p[b]+=Math.sin(t)*r;pv.set(p[0],p[1],p[2]).applyMatrix4(m.matrixWorld).project(cam);
+    const x=(pv.x+1)/2*rc.width,y=(1-pv.y)/2*rc.height;if(pr){const d=sd(px,py,pr[0],pr[1],x,y);if(d<bd){bd=d;best=k}}pr=[x,y]}});return best}
+ const hi=(k,on)=>rings[k].traverse(o=>{if(o.isMesh)o.material.color.setHex(on?0xffffff:RC[k])});
  const down=e=>{if(e.target!==E)return;dn=[e.clientX,e.clientY];last=[e.clientX,e.clientY];zhou=3;
-  if(sel){ndc(e);const h=ray.intersectObjects(rings.filter(x=>x.visible),true)[0];if(h){let o=h.object;while(o.parent!==Z)o=o.parent;zhou=rings.indexOf(o);ctl.enabled=false;E.setPointerCapture(e.pointerId)}}};
+  if(sel){const k=pickRing(e);if(k>=0){zhou=k;ctl.enabled=false;E.setPointerCapture(e.pointerId);hi(k,true)}}};
  const move=e=>{if(zhou>2)return;const d=-((e.clientX-last[0])+(e.clientY-last[1]))*1.0;last=[e.clientX,e.clientY];rot(sel,zhou,d);rot(twin,zhou,d)};
- const up=e=>{if(e.target!==E&&zhou>2)return;const was=zhou;zhou=3;ctl.enabled=true;if(was<3||!dn)return;
+ const up=e=>{if(e.target!==E&&zhou>2)return;const was=zhou;if(was<3)hi(was,false);zhou=3;ctl.enabled=true;if(was<3||!dn)return;
   if(Math.hypot(e.clientX-dn[0],e.clientY-dn[1])>6)return;ndc(e);const h=ray.intersectObject(R,true).find(x=>x.object.isMesh&&x.object.visible);
   let o=h&&h.object.parent;while(o&&!P[o.name])o=o.parent;select(o||null)};
  E.addEventListener('pointerdown',down);E.addEventListener('pointermove',move);E.addEventListener('pointerup',up);
